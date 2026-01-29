@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eva Sánchez - Exact Effect</title>
+    <title>Eva Sánchez - HORIZONTAL Original</title>
     <style>
         * {
             margin: 0;
@@ -41,7 +41,7 @@
 </head>
 <body>
     <canvas id="canvas"></canvas>
-    <div class="info">Hover to distort</div>
+    <div class="info">Hover - HORIZONTAL Original</div>
 
     <script>
         const canvas = document.getElementById('canvas');
@@ -55,7 +55,6 @@
             alert('WebGL not supported');
         }
 
-        // Setup canvas
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = 1400 * dpr;
         canvas.height = 500 * dpr;
@@ -63,7 +62,6 @@
         canvas.style.height = '500px';
         gl.viewport(0, 0, canvas.width, canvas.height);
 
-        // Create text texture
         const textCanvas = document.createElement('canvas');
         const ctx = textCanvas.getContext('2d');
         textCanvas.width = 1400 * dpr;
@@ -73,7 +71,7 @@
         ctx.font = `900 ${160 * dpr}px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Eva Sánchez', textCanvas.width / 2, textCanvas.height / 2);
+        ctx.fillText('Get in Touch', textCanvas.width / 2, textCanvas.height / 2);
 
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -83,7 +81,6 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-        // Shaders
         const vertexShaderSource = `
             attribute vec2 position;
             attribute vec2 uv;
@@ -95,45 +92,43 @@
             }
         `;
 
+        // EXACT HORIZONTAL TEXT SHADER FROM WEBSITE (part2.js line 3868-3945)
         const fragmentShaderSource = `
             precision highp float;
             
-            uniform sampler2D uTexture;
-            uniform vec2 uMouse;
+            uniform sampler2D tMap;
             uniform float uTime;
-            uniform float uHoverAmount;
+            uniform float uMouseT;
+            uniform float uMouse;
             
             varying vec2 vUv;
             
+            float ripple(float uv, float time, float prog) {
+                float distance = length(((uv) + (time * 2.)));
+                return tan(distance * (1.)) * (prog * -1.85);
+            }
+            
             void main() {
-                vec2 uv = vUv;
+                // Mouse ripple effect - HORIZONTAL (using Y coordinate)
+                float rippleUV2 = ripple(vUv.y, uMouse, uMouseT) * (0.0006 * uMouseT);
                 
-                // Calculate distance from mouse
-                float dist = distance(vUv, uMouse);
-                float influence = smoothstep(0.5, 0.0, dist) * uHoverAmount;
+                // Apply ripple to Y coordinate for HORIZONTAL effect
+                vec2 U = vec2(vUv.x, rippleUV2 + vUv.y);
                 
-                if (influence > 0.01) {
-                    // VERY HIGH frequency = VERY THIN vertical lines
-                    float pattern = sin(vUv.x * 120.0 + uTime * 1.2);
-                    
-                    // VERY SMALL displacement = SUBTLE effect
-                    float displacement = pattern * influence * 0.02;
-                    
-                    // Apply ONLY to X coordinate (horizontal shift)
-                    uv.x += displacement;
-                    
-                    // NO wrapping - clamp to edges
-                    uv.x = clamp(uv.x, 0.0, 1.0);
-                }
+                float distor = 1.0;
                 
-                // Sample texture ONCE - NO alpha manipulation
-                vec4 color = texture2D(uTexture, uv);
+                // Sample texture with displacement
+                float r = texture2D(tMap, vec2(U.x * distor, U.y / distor)).r;
+                float g = texture2D(tMap, vec2(U.x, U.y)).g * (distor);
+                float b = texture2D(tMap, vec2(U.x, U.y)).b * (distor + (1.6 * (distor - 1.0)));
+                float a = texture2D(tMap, vec2(U.x, U.y)).a;
                 
-                gl_FragColor = color;
+                gl_FragColor = vec4(r, g, b, a);
+                // Reduce alpha where ripple is strong
+                gl_FragColor.a -= abs(rippleUV2) * (0.5);
             }
         `;
 
-        // Compile shaders
         function compileShader(source, type) {
             const shader = gl.createShader(type);
             gl.shaderSource(shader, source);
@@ -159,7 +154,6 @@
 
         gl.useProgram(program);
 
-        // Setup geometry
         const positions = new Float32Array([
             -1, -1,  1, -1,  -1, 1,  1, 1
         ]);
@@ -184,57 +178,52 @@
         gl.enableVertexAttribArray(uvLocation);
         gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, 0, 0);
 
-        // Uniforms
-        const uTexture = gl.getUniformLocation(program, 'uTexture');
-        const uMouse = gl.getUniformLocation(program, 'uMouse');
+        const tMap = gl.getUniformLocation(program, 'tMap');
         const uTime = gl.getUniformLocation(program, 'uTime');
-        const uHoverAmount = gl.getUniformLocation(program, 'uHoverAmount');
+        const uMouseT = gl.getUniformLocation(program, 'uMouseT');
+        const uMouse = gl.getUniformLocation(program, 'uMouse');
 
-        // Mouse tracking
-        let mouse = { x: 0.5, y: 0.5 };
-        let targetMouse = { x: 0.5, y: 0.5 };
-        let hoverAmount = 0.0;
-        let targetHoverAmount = 0.0;
+        let mouse = 0.0;
+        let targetMouse = 0.0;
+        let mouseT = 0.0;
+        let targetMouseT = 0.0;
 
         canvas.addEventListener('mouseenter', () => {
-            targetHoverAmount = 1.0;
+            targetMouseT = 1.0;
         });
 
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
-            targetMouse.x = (e.clientX - rect.left) / rect.width;
-            targetMouse.y = 1.0 - (e.clientY - rect.top) / rect.height;
+            // Y coordinate for HORIZONTAL effect
+            targetMouse = (e.clientY - rect.top) / rect.height;
         });
 
         canvas.addEventListener('mouseleave', () => {
-            targetHoverAmount = 0.0;
+            targetMouseT = 0.0;
         });
 
-        // Animation
         let time = 0;
         function animate() {
             time += 0.016;
             
             // Smooth interpolation
-            mouse.x += (targetMouse.x - mouse.x) * 0.1;
-            mouse.y += (targetMouse.y - mouse.y) * 0.1;
-            hoverAmount += (targetHoverAmount - hoverAmount) * 0.12;
+            mouse += (targetMouse - mouse) * 0.1;
+            mouseT += (targetMouseT - mouseT) * 0.12;
 
-            // Clear
             gl.clearColor(0.92, 0.92, 0.92, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
-            // Enable blending
             gl.enable(gl.BLEND);
             gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-            // Set uniforms
-            gl.uniform1i(uTexture, 0);
-            gl.uniform2f(uMouse, mouse.x, mouse.y);
-            gl.uniform1f(uTime, time);
-            gl.uniform1f(uHoverAmount, hoverAmount);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
 
-            // Draw
+            gl.uniform1i(tMap, 0);
+            gl.uniform1f(uTime, time);
+            gl.uniform1f(uMouseT, mouseT);
+            gl.uniform1f(uMouse, mouse);
+
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
             requestAnimationFrame(animate);
