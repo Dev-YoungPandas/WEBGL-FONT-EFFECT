@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eva Sánchez - HORIZONTAL Original</title>
+    <title>Eva Sánchez - EXACT Video Effect</title>
     <style>
         * {
             margin: 0;
@@ -41,7 +41,7 @@
 </head>
 <body>
     <canvas id="canvas"></canvas>
-    <div class="info">Hover - HORIZONTAL Original</div>
+    <div class="info">EXACT Video Effect - Auto play + Hover</div>
 
     <script>
         const canvas = document.getElementById('canvas');
@@ -71,7 +71,7 @@
         ctx.font = `900 ${160 * dpr}px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Get in Touch', textCanvas.width / 2, textCanvas.height / 2);
+        ctx.fillText('Eva Sánchez', textCanvas.width / 2, textCanvas.height / 2);
 
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -92,7 +92,7 @@
             }
         `;
 
-        // EXACT HORIZONTAL TEXT SHADER FROM WEBSITE (part2.js line 3868-3945)
+        // EXACT VIDEO EFFECT - many thin vertical lines with gaps
         const fragmentShaderSource = `
             precision highp float;
             
@@ -109,22 +109,22 @@
             }
             
             void main() {
-                // Mouse ripple effect - HORIZONTAL (using Y coordinate)
-                float rippleUV2 = ripple(vUv.y, uMouse, uMouseT) * (0.0006 * uMouseT);
+                // VERY HIGH FREQUENCY = many thin vertical lines
+                // Multiply by 50-100 to get lots of lines like in video
+                float rippleUV2 = ripple(vUv.x * 40.0, uMouse, uMouseT) * (0.002 * uMouseT);
                 
-                // Apply ripple to Y coordinate for HORIZONTAL effect
-                vec2 U = vec2(vUv.x, rippleUV2 + vUv.y);
+                // Apply to X coordinate for VERTICAL lines
+                vec2 U = vec2(rippleUV2 + vUv.x, vUv.y);
                 
                 float distor = 1.0;
                 
-                // Sample texture with displacement
                 float r = texture2D(tMap, vec2(U.x * distor, U.y / distor)).r;
                 float g = texture2D(tMap, vec2(U.x, U.y)).g * (distor);
                 float b = texture2D(tMap, vec2(U.x, U.y)).b * (distor + (1.6 * (distor - 1.0)));
                 float a = texture2D(tMap, vec2(U.x, U.y)).a;
                 
                 gl_FragColor = vec4(r, g, b, a);
-                // Reduce alpha where ripple is strong
+                // Create gaps in letters
                 gl_FragColor.a -= abs(rippleUV2) * (0.5);
             }
         `;
@@ -183,30 +183,52 @@
         const uMouseT = gl.getUniformLocation(program, 'uMouseT');
         const uMouse = gl.getUniformLocation(program, 'uMouse');
 
-        let mouse = 0.0;
-        let targetMouse = 0.0;
-        let mouseT = 0.0;
-        let targetMouseT = 0.0;
+        let mouse = 0.5; // Start at center
+        let targetMouse = 0.5;
+        let mouseT = 1.0; // Start with effect ON (automatic animation)
+        let targetMouseT = 1.0;
+        
+        // Auto-play variables
+        let autoPlayActive = true;
+        let autoPlayStartTime = Date.now();
+        const autoPlayDuration = 2500; // 2.5 seconds of auto animation
+        
+        // After auto-play finishes, turn off effect
+        setTimeout(() => {
+            autoPlayActive = false;
+            targetMouseT = 0.0; // Fade out the effect
+        }, autoPlayDuration);
 
+        // Hover controls (works after auto-play or anytime)
         canvas.addEventListener('mouseenter', () => {
-            targetMouseT = 1.0;
+            if (!autoPlayActive) {
+                targetMouseT = 1.0;
+            }
         });
 
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
-            // Y coordinate for HORIZONTAL effect
-            targetMouse = (e.clientY - rect.top) / rect.height;
+            targetMouse = (e.clientX - rect.left) / rect.width;
         });
 
         canvas.addEventListener('mouseleave', () => {
-            targetMouseT = 0.0;
+            if (!autoPlayActive) {
+                targetMouseT = 0.0;
+            }
         });
 
         let time = 0;
         function animate() {
             time += 0.016;
             
-            // Smooth interpolation
+            // Auto-play animation: smooth right to left sweep
+            if (autoPlayActive) {
+                const elapsed = Date.now() - autoPlayStartTime;
+                const progress = Math.min(elapsed / autoPlayDuration, 1.0);
+                // Smooth movement from right (1.0) to left (0.0)
+                targetMouse = 1.0 - progress;
+            }
+            
             mouse += (targetMouse - mouse) * 0.1;
             mouseT += (targetMouseT - mouseT) * 0.12;
 
